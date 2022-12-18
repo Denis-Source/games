@@ -14,15 +14,23 @@ from tests.conftest import assert_url_is_http
 
 class BaseModelTest(ABC):
     @abstractmethod
-    def test_create_instance(self):
+    def test_create_instance(self, instance):
         raise NotImplementedError
 
     @abstractmethod
-    def test_delete_instance(self):
+    def test_delete_instance(self, instance):
         raise NotImplementedError
 
     @abstractmethod
-    def test_connections(self):
+    def test_connections(self, connected_instance):
+        raise NotImplementedError
+
+    @pytest.fixture
+    def instance(self):
+        raise NotImplementedError
+
+    @pytest.fixture
+    def connected_instance(self):
         raise NotImplementedError
 
 
@@ -59,8 +67,13 @@ class TestEntityModel(BaseModelTest):
         entity = self.model_cls.nodes.get_or_none(name=self.DATA.get("name"))
         assert entity is None
 
-    def test_connections(self):
+    @pytest.fixture
+    def connected_instance(self):
         pass
+
+    def test_connections(self, connected_instance):
+        pass
+
 
 
 @pytest.mark.order(1)
@@ -85,8 +98,6 @@ class TestContentModel(TestEntityModel):
     PUBLISHERS = ["publisher1"]
 
     def test_create_instance(self, instance):
-        content = instance
-
         assert instance.short_desc == self.DATA.get("short_desc")
         assert instance.long_desc == self.DATA.get("long_desc")
         assert instance.header_image == self.DATA.get("header_image")

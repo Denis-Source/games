@@ -28,3 +28,7 @@ class Entity(StructuredNode, BaseModel):
 
     def serialize_connections(self) -> dict:
         return {}
+
+    @classmethod
+    def category(cls):
+        pass

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Tuple
+from typing import List, Tuple, Type
 
 from neomodel import db
 
@@ -19,7 +19,7 @@ class ModelNotFoundException(Exception):
 
 class ModelService:
     @staticmethod
-    def get_model(model_cls: type, **kwargs) -> BaseModel:
+    def get_model(model_cls: Type[Entity], **kwargs) -> Entity:
         instance = model_cls.nodes.get_or_none(**kwargs)
         if not instance:
             raise ModelNotFoundException
@@ -27,7 +27,7 @@ class ModelService:
 
     @staticmethod
     def get_filtered_list(
-            model_cls: type,
+            model_cls: Type[Entity],
             start: int = 0,
             limit: int = None,
             order_by="-name",
@@ -44,7 +44,7 @@ class ModelService:
 
     @staticmethod
     def get_cyphered_list(
-            model_cls: type,
+            model_cls: Type[Entity],
             cypher: str,
             start: int = 0,
             limit: int = None,
@@ -55,11 +55,11 @@ class ModelService:
         start += limit
 
         next_results, _ = db.cypher_query(cypher)
-        return results, len(next_results)
+        return results, len(next_results) > 0
 
     @staticmethod
     def get_similar_list(
-            model_cls: type,
+            model_cls: Type[Entity],
             name: str,
             start: int = 0,
             limit: int = None,
@@ -84,7 +84,7 @@ class ModelService:
         )
 
     @staticmethod
-    def create_model(model_cls: type, **kwargs) -> BaseModel:
+    def create_model(model_cls: Type[Entity], **kwargs) -> Entity:
         model_types = {
             Entity: ModelService._create_entity,
             Company: ModelService._create_entity,
@@ -100,13 +100,13 @@ class ModelService:
         return model_types[model_cls](model_cls, **kwargs)
 
     @staticmethod
-    def delete_model(model_cls: type, name: str) -> None:
+    def delete_model(model_cls: Type[Entity], name: str) -> None:
         instance = model_cls.nodes.get_or_none(name=name)
         if instance:
             instance.delete()
 
     @staticmethod
-    def _create_entity(model_cls: Entity, name: str, **kwargs) -> Entity:
+    def _create_entity(model_cls: Type[Entity], name: str) -> Entity:
         instance = model_cls.nodes.get_or_none(name=name)
         if not instance:
             instance = model_cls(
@@ -117,12 +117,20 @@ class ModelService:
 
     @staticmethod
     def _create_content(
-            model_cls: type,
+            model_cls: Type[Entity],
             name: str, short_desc: str, long_desc: str, header_image: str,
-            is_free: bool = False, images: List[str] = [], movies: [List] = [],
-            publishers: List[str] = [], developers: List[str] = [], date=None,
-            **kwargs
+            is_free: bool = False, images: List[str] = None, movies: [List] = None,
+            publishers: List[str] = None, developers: List[str] = None, date=None,
     ) -> Content:
+        if not images:
+            images = []
+        if not movies:
+            movies = []
+        if not publishers:
+            publishers = []
+        if not developers:
+            developers = []
+
         instance = model_cls.nodes.get_or_none(name=name)
 
         if date:
@@ -156,14 +164,19 @@ class ModelService:
 
     @staticmethod
     def _create_game(
-            model_cls: type,
-            genres: List[str] = [], categories: List[str] = [],
+            model_cls: Type[Entity],
+            genres: List[str] = None, categories: List[str] = None,
             **kwargs
     ) -> Game:
         instance = ModelService._create_content(
             model_cls=model_cls,
             **kwargs
         )
+
+        if not genres:
+            genres = []
+        if not categories:
+            categories = []
 
         for genre_name in genres:
             genre = ModelService._create_entity(Genre, genre_name)

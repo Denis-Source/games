@@ -1,6 +1,3 @@
-from models.base import BaseModel
-
-
 class PaginationService:
     MAX_LIMIT = 100
 

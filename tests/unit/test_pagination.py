@@ -31,7 +31,7 @@ class TestPagination:
         result = PaginationService.get_paginated_list(
             PaginationService.trim_list(list_, start, limit),
             self.TEST_URL,
-            len(list_),
+            len(list_) > limit,
             start,
             limit
         )
@@ -80,7 +80,7 @@ class TestPagination:
         result = PaginationService.get_paginated_list(
             PaginationService.trim_list(list_, start, limit),
             self.TEST_URL,
-            len(list_),
+            len(list_) > limit,
             start,
             limit
         )

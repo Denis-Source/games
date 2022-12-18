@@ -1,7 +1,6 @@
 import pytest
 
 from models.category import Category
-from models.company import Company
 from models.content import Content
 from models.dlc import DLC
 from models.entity import Entity
@@ -55,7 +54,7 @@ class TestModelService:
         example_instance = duplicate_instances[0]
         assert all([instance.name == example_instance.name for instance in duplicate_instances])
         assert all([instance.node_id == example_instance.node_id for instance in duplicate_instances])
-        result, _ =ModelService.get_filtered_list(
+        result, _ = ModelService.get_filtered_list(
             example_instance.__class__,
             name=example_instance.name
         )
@@ -75,7 +74,7 @@ class TestModelService:
 
         for model_cls in model_clss:
             with pytest.raises(TypeError):
-                instance = ModelService.create_model(
+                ModelService.create_model(
                     model_cls=model_cls,
                     name=data.get("name")
                 )

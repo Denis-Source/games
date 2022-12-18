@@ -1,7 +1,5 @@
 import os
 
-from neomodel import config
-
 LOADING_FOLDER = r"C:\Shlack\python\games\loading\apps"
 DEFAULT_DB_USERNAME = "neo4j"
 

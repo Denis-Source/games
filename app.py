@@ -7,7 +7,7 @@ from resources.game.list import GameListResource
 from resources.game.similar import GameSimilarResource
 
 
-def create_app(test_config=None):
+def create_app():
     ROUTES = {
         "/games": GameListResource,
         "/games/<string:node_id>": GameDetailResource,

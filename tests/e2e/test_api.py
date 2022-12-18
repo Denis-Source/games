@@ -24,7 +24,7 @@ class TestGameAPI:
                 "is_free": False,
                 "short_desc": "desc",
                 "long_desc": "also desc",
-                "header_image": "http://example.com/image",
+                "header_image": "https://example.com/image",
                 "genres": genres if counter < self.SOME_GAMES_AMOUNT / 2 else [],
                 "categories": categories if counter < self.SOME_GAMES_AMOUNT / 2 else [],
             }) for counter in range(self.SOME_GAMES_AMOUNT)]
