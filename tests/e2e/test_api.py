@@ -12,9 +12,10 @@ from services.model_services import ModelService
 @pytest.mark.usefixtures("api")
 @pytest.mark.usefixtures("neo4j")
 class TestGameAPI:
+    SOME_GAMES_AMOUNT = 10
 
-    @staticmethod
-    def _generate_some_games(n=10):
+    @pytest.fixture
+    def some_games(self):
         genres = ["test_genre1", "test_genre2"]
         categories = ["test_category1", "test_category2"]
         instances = [
@@ -24,9 +25,10 @@ class TestGameAPI:
                 "short_desc": "desc",
                 "long_desc": "also desc",
                 "header_image": "http://example.com/image",
-                "genres": genres if counter < n / 2 else [],
-                "categories": categories if counter < n / 2 else [],
-            }) for counter in range(n)]
+                "genres": genres if counter < self.SOME_GAMES_AMOUNT / 2 else [],
+                "categories": categories if counter < self.SOME_GAMES_AMOUNT / 2 else [],
+            }) for counter in range(self.SOME_GAMES_AMOUNT)]
+
         yield instances
 
         for genre_name in genres:
@@ -46,52 +48,33 @@ class TestGameAPI:
                 Game,
                 instance.name
             )
-        yield []
 
-    def test_detail_api(self):
-        game_data = {
-            "name": "Test Game",
-            "is_free": False,
-            "long_desc": "Detailed description.",
-            "short_desc": "short description",
-            "date": "23 Aug, 2016",
-            "header_image": "https://test.url",
-        }
+    def test_detail_api(self, some_games):
+        game = some_games[0]
 
-        game = ModelService.create_model(
-            Game,
-            **game_data
-        )
-
-        game_node_id = game.node_id
         response = requests.get(
-            f"{get_api_url()}/games/{game_node_id}"
+            f"{get_api_url()}/games/{game.node_id}"
         )
-
-        ModelService.delete_model(
-            Game,
-            game_data.get("name")
-        )
-
         assert response.status_code == 200
         game_dict = response.json().get("result")
 
-        assert game_dict.get("node_id") == game_node_id
-        assert game_dict.get("name") == game_data.get("name")
-        assert game_dict.get("long_desc") == game_data.get("long_desc")
-        assert game_dict.get("short_desc") == game_data.get("short_desc")
-        assert game_dict.get("header_image") == game_data.get("header_image")
-        assert game_dict.get("date") == game_data.get("date")
+        assert game_dict.get("node_id") == game.node_id
+        assert game_dict.get("name") == game.name
+        assert game_dict.get("short_desc") == game.short_desc
+        assert game_dict.get("long_desc") == game.long_desc
+        assert game_dict.get("header_image") == game.header_image
+        assert game_dict.get("date") == game.get_formatted_date()
+
+        ModelService.delete_model(
+            Game,
+            name=game.name
+        )
 
         assert requests.get(
-            f"{get_api_url()}/games/{game_node_id}"
+            f"{get_api_url()}/games/{game.node_id}"
         ).status_code == 404
 
-    def test_list_api(self):
-        instances_generator = self._generate_some_games(10)
-        instances = next(instances_generator)
-        instance = instances[0]
-
+    def test_list_api(self, some_games):
         limit = 7
         url = f"{get_api_url()}/games?limit={limit}&sort=-name"
         response = requests.get(url)
@@ -99,29 +82,24 @@ class TestGameAPI:
         assert response.status_code == 200
         assert len(response.json().get("results")) == limit
         assert response.json().get("previous") is None
+        assert self.SOME_GAMES_AMOUNT - len(response.json().get("results")) < limit
 
         response = requests.get(response.json().get("next"))
         assert response.status_code == 200
-
-        assert len(response.json().get("results")) == len(instances) - limit
+        assert len(response.json().get("results")) == len(some_games) - limit
         assert response.json().get("next") is None
-        next(instances_generator)
 
-    def test_similar_api(self):
-        instances_generator = self._generate_some_games(20)
-        instances = next(instances_generator)
-        instance = instances[0]
+    def test_similar_api(self, some_games):
+        based_on_game = some_games[0]
 
         limit = 5
-        url = f"{get_api_url()}/games/similar/{instance.node_id}?limit={limit}"
+        url = f"{get_api_url()}/games/similar/{based_on_game.node_id}?limit={limit}"
         response = requests.get(url)
 
         assert response.status_code == 200
-        assert len(response.json().get("results")) == limit
+        assert len(response.json().get("results")) == self.SOME_GAMES_AMOUNT / 2 - 1
         assert response.json().get("previous") is None
         assert response.json().get("next")
 
         response = requests.get(response.json().get("next"))
         assert response.status_code == 200
-
-        next(instances_generator)

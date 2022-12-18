@@ -34,22 +34,30 @@ class TestEntityModel(BaseModelTest):
     }
     model_cls = Entity
 
-    def test_create_instance(self):
-        self.model_cls(
-            name=self.DATA.get("name")
+    @pytest.fixture
+    def instance(self):
+        instance_ = self.model_cls(
+            **self.DATA
         ).save()
 
-        entity = Entity.nodes.get_or_none(name=self.DATA.get("name"))
+        yield instance_
+
+        try:
+            instance_.delete()
+        except ValueError:
+            pass
+
+    def test_create_instance(self, instance):
+        entity = instance
         assert entity is not None
         assert entity.name == self.DATA.get("name")
-        entity.delete()
 
-    def test_delete_instance(self):
-        entity = Entity(name=self.DATA.get("name"))
-        entity.save()
+    def test_delete_instance(self, instance):
+        entity = instance
 
         entity.delete()
-        assert Entity.nodes.get_or_none(name=self.DATA.get("name")) is None
+        entity = self.model_cls.nodes.get_or_none(name=self.DATA.get("name"))
+        assert entity is None
 
     def test_connections(self):
         pass
@@ -57,72 +65,30 @@ class TestEntityModel(BaseModelTest):
 
 @pytest.mark.order(1)
 @pytest.mark.usefixtures("neo4j")
-class TestContentModel(BaseModelTest):
-    DATA = TestEntityModel.DATA
-    DATA.update({
-        "is_free": False,
-        "detailed_description": "Detailed description.",
-        "short_description": "short description",
-        "release_date": {
-            "date": "23 Aug, 2016"
-        },
-
-        "background_raw": "https://test.url",
-        "header_image": "https://test.url",
-        "screenshots": [
-            {
-                "id": 0,
-                "path_thumbnail": "https://test.url",
-                "path_full": "https://test.url"
-            },
-            {
-                "id": 1,
-                "path_thumbnail": "https://test.url",
-                "path_full": "https://test.url"
-            },
-        ],
-
-        "movies": [
-            {
-                "webm": {
-                    "480": "https://test.url",
-                    "max": "https://test.url"
-                },
-                "mp4": {
-                    "480": "https://test.url",
-                    "max": "https://test.url"
-                },
-            }
-        ],
-        "publishers": ["publisher1"],
-        "developers": ["developer1", "developer2"],
-    })
-
+class TestContentModel(TestEntityModel):
     model_cls = Content
 
-    def _create_instance(self):
-        instance = self.model_cls.nodes.get_or_none(name=self.DATA.get("name"))
-        while instance:
-            instance.delete()
+    DATE = "23 Aug, 2016"
+    DATA = {
+        "name": "test_content",
+        "is_free": False,
+        "short_desc": "short description",
+        "long_desc": "Detailed description.",
+        "date": datetime.strptime(DATE, model_cls.DATE_FORMAT),
 
-        instance = self.model_cls(
-            name=self.DATA.get("name"),
-            is_free=self.DATA.get("is_free"),
-            short_desc=self.DATA.get("short_description"),
-            long_desc=self.DATA.get("detailed_description"),
-            header_image=self.DATA.get("header_image"),
-            images=[image.get("path_full") for image in self.DATA.get("screenshots")],
-            movies=[image.get("mp4").get("max") for image in self.DATA.get("movies")]
-        )
-        instance.save()
-        return instance
+        "header_image": "https://test.url",
+        "images": ["https://test.url/image1.jepeh", "https://test.url/image2.jepeh", "https://test.url/image3.jepeh"],
+        "movies": ["https://test.url/movie1.empe4", "https://test.url/movie2.empe4"],
+    }
 
-    def test_create_instance(self):
-        instance = self._create_instance()
+    DEVELOPERS = ["developer1", "developer2"]
+    PUBLISHERS = ["publisher1"]
 
-        assert instance.short_desc == self.DATA.get("short_description")
-        assert instance.long_desc == self.DATA.get("detailed_description")
-        date = datetime.strptime(self.DATA.get("release_date").get("date"), "%d %b, %Y"),
+    def test_create_instance(self, instance):
+        content = instance
+
+        assert instance.short_desc == self.DATA.get("short_desc")
+        assert instance.long_desc == self.DATA.get("long_desc")
         assert instance.header_image == self.DATA.get("header_image")
 
         for image in instance.images:
@@ -130,32 +96,34 @@ class TestContentModel(BaseModelTest):
         for movie in instance.movies:
             assert_url_is_http(movie)
 
-        instance.delete()
-
-    def test_connections(self):
-        instance = self._create_instance()
-
-        publishers = [Company(name=publisher_name) for publisher_name in self.DATA.get("publishers")]
-        [publisher.save() for publisher in publishers]
-        developers = [Company(name=developers_name) for developers_name in self.DATA.get("developers")]
-        [developers.save() for developers in developers]
-
+    @pytest.fixture
+    def connected_instance(self, instance):
+        publishers = [Company(name=p_name) for p_name in self.PUBLISHERS]
         for publisher in publishers:
+            publisher.save()
             instance.publishers.connect(publisher)
-            assert instance.publishers.relationship(publisher)
 
+        developers = [Company(name=d_name) for d_name in self.DEVELOPERS]
         for developer in developers:
+            developer.save()
             instance.developers.connect(developer)
-            assert instance.developers.relationship(developer)
 
-        [developer.delete() for developer in instance.developers]
-        [publisher.delete() for publisher in instance.publishers]
-        instance.delete()
+        yield instance, developers, publishers
 
-    def test_delete_instance(self):
-        instance = self._create_instance()
-        instance.delete()
-        assert Content.nodes.get_or_none(name=self.DATA.get("name")) is None
+        [publisher.delete() for publisher in publishers]
+        [developer.delete() for developer in developers]
+
+    def test_correct_date_format(self, instance):
+        assert instance.get_formatted_date() == self.DATE
+
+    def test_connections(self, connected_instance):
+        content, developers, publishers = connected_instance
+        for developer in developers:
+            assert content.developers.relationship(developer)
+
+            for publisher in publishers:
+                assert content.publishers.relationship(publisher)
+                assert content.developers.relationship(publisher) is None
 
 
 @pytest.mark.order(1)
@@ -163,32 +131,36 @@ class TestContentModel(BaseModelTest):
 class TestGameModel(TestContentModel):
     DATA = TestContentModel.DATA
     DATA.update({
-        "genres": [
-            {"id": 0, "description": "genre1"},
-            {"id": 1, "description": "genre2"}
-        ],
-        "categories": [
-            {"id": 0, "description": "category1"},
-            {"id": 1, "description": "category2"}
-        ],
+        "name": "test_game",
     })
+    GENRES = ["genres1", "genres2"]
+    CATEGORIES = ["category1", "category2"]
     model_cls = Game
 
-    def test_connections(self):
-        instance = self._create_instance()
-        genres = [Genre(name=genre.get("description")) for genre in self.DATA.get("genres")]
-        [genre.save() for genre in genres]
-        categories = [Category(name=category.get("description")) for category in self.DATA.get("genres")]
-        [category.save() for category in categories]
+    @pytest.fixture
+    def connected_instance(self, instance):
+        genres = [Genre(name=g_name) for g_name in self.GENRES]
+        categories = [Category(name=c_name) for c_name in self.CATEGORIES]
 
         for genre in genres:
+            genre.save()
             instance.genres.connect(genre)
-            assert instance.genres.relationship(genre)
 
         for category in categories:
+            category.save()
             instance.categories.connect(category)
-            assert instance.categories.relationship(category)
 
-        [genre.delete() for genre in instance.genres]
-        [category.delete() for category in instance.categories]
-        instance.delete()
+        yield instance, genres, categories
+
+        [category.delete() for category in categories]
+        [genre.delete() for genre in genres]
+
+    def test_connections(self, connected_instance):
+        content, genres, categories = connected_instance
+        for genre in genres:
+            assert content.genres.relationship(genre)
+
+            for category in categories:
+                assert content.categories.relationship(category)
+                with pytest.raises(ValueError):
+                    content.genres.relationship(category)

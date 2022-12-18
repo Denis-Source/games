@@ -18,19 +18,22 @@ class Content(Entity):
     publishers = Relationship("models.company.Company", "PUBLISHED")
     developers = Relationship("models.company.Company", "DEVELOPED")
 
-    def serialize(self, connections: bool = False) -> dict:
-        serialization = super().serialize(connections=connections)
-
+    def get_formatted_date(self):
         if self.date:
             formatted_date = self.date.strftime(self.DATE_FORMAT)
         else:
             formatted_date = None
 
+        return formatted_date
+
+    def serialize(self, connections: bool = False) -> dict:
+        serialization = super().serialize(connections=connections)
+
         serialization.update({
             "is_free": self.is_free,
             "long_desc": self.long_desc,
             "short_desc": self.short_desc,
-            "date": formatted_date,
+            "date": self.get_formatted_date(),
             "header_image": self.header_image,
             "images": self.images,
             "movies": self.movies,
